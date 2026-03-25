@@ -21,7 +21,7 @@ from pytorch_lightning.callbacks import (
 from pytorch_lightning.loggers import WandbLogger
 import yaml
 
-from nf_module import LitNFRegressor, NFDataModule
+from .nf_module import LitNFRegressor, NFDataModule
 
 
 def load_config(path="config.yaml"):
@@ -31,7 +31,7 @@ def load_config(path="config.yaml"):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--config", default="config/config.yaml")
     args = parser.parse_args()
 
     cfg = load_config(args.config)

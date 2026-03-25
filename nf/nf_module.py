@@ -15,8 +15,8 @@ from torch.utils.data import Dataset, DataLoader, random_split
 
 import pytorch_lightning as pl
 
-from nf_encoder import Encoder3DFiLM
-from nf_flow import ConditionalFlow
+from .nf_encoder import Encoder3DFiLM
+from .nf_flow import ConditionalFlow
 
 
 # ---------------------------

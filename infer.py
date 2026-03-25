@@ -143,7 +143,7 @@ def process_source(src, models, num_steps, param_dim, out_base, method='euler', 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--config", default="config/config.yaml")
     parser.add_argument("--checkpoint", default=None)
     args = parser.parse_args()
     with open(args.config) as f:

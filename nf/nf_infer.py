@@ -28,7 +28,7 @@ try:
 except (ImportError, OSError):
     pass
 
-from nf_module import LitNFRegressor, CosmoVolumeDataset
+from .nf_module import LitNFRegressor, CosmoVolumeDataset
 
 
 def load_config(path="config.yaml"):
@@ -259,7 +259,7 @@ def process_source(source_cfg, model, nf_cfg, output_dir, device):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--config", default="config/config.yaml")
     parser.add_argument("--checkpoint", default=None,
                         help="Override checkpoint path from config")
     parser.add_argument("--device", default="cuda")

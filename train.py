@@ -207,7 +207,7 @@ class FlowMatchingModel(pl.LightningModule):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="config.yaml")
+    parser.add_argument("--config", default="config/config.yaml")
     args = parser.parse_args()
     with open(args.config) as f:
         cfg = yaml.safe_load(f)

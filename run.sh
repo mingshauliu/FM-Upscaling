@@ -24,7 +24,7 @@ source /mnt/home/mliu1/env/bin/activate
 mkdir -p logs
 
 MODE="${1:-train}"
-CONFIG="${2:-config.yaml}"
+CONFIG="${2:-config/config.yaml}"
 
 echo "Node: $(hostname) | Mode: $MODE | Config: $CONFIG"
 nvidia-smi
@@ -38,10 +38,10 @@ case "$MODE" in
     ;;
   nf_train)
     export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-    srun python nf_train.py --config "$CONFIG"
+    srun python -m nf.nf_train --config "$CONFIG"
     ;;
   nf_infer)
-    python nf_infer.py --config "$CONFIG"
+    python -m nf.nf_infer --config "$CONFIG"
     ;;
   *)
     echo "Unknown mode: $MODE (use 'train', 'infer', 'nf_train', or 'nf_infer')"
