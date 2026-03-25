@@ -1,0 +1,119 @@
+# ============================================================
+# pipeline_v3 — single config for training + inference
+# ============================================================
+# Switch experiments by editing this file (or copy & rename).
+# Rules:
+#   circular_padding: true  → full periodic box only
+#   circular_padding: false → cropouts (boundaries not periodic)
+
+# ---- data ----
+data:
+  cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+  resolution: 128          # native grid size (128 for L25, 256 for L50)
+  crop_size: null          # null = no crop; set < resolution for PBC random crop
+  box_size: 25             # Mpc/h
+  val_split: 0.2
+
+# ---- model ----
+model:
+  in_channels: 2           # [x_t, cdm]
+  base_channels: 128
+  out_channels: 1
+  param_dim: 6             # columns in param_path
+  circular_padding: true
+  num_blocks: 2            # ResBlocks per encoder/decoder level
+
+# ---- training ----
+training:
+  max_epochs: 1000
+  batch_size: 2
+  noise_std: 0.2
+  lr: 1.0e-4
+  weight_decay: 1.0e-3
+  gradient_checkpointing: false
+  gradient_clip: 0.5
+  accumulate_grad: 4
+  precision: "bf16-mixed"  # bf16-mixed avoids fp16 overflow in GroupNorm on 128^3 volumes
+  devices: 4
+  strategy: ddp
+  num_workers: 2
+  log_every_n_steps: 50
+  xcorr_every_n_epochs: 5
+  xcorr_num_steps: 50
+  xcorr_method: euler      # euler | dopri5 | dopri8 | rk4 | midpoint | ...
+  xcorr_rtol: 1.0e-4       # for adaptive solvers only
+  xcorr_atol: 1.0e-4       # for adaptive solvers only
+  resume_from: lightning_logs/zbmlubqt/checkpoints/best-epoch=111-val_loss=0.026492.ckpt
+
+# ---- inference ----
+inference:
+  checkpoint: null         # null = auto-detect best from lightning_logs/
+  num_steps: 100           # integration steps (fixed-step) or time points (adaptive)
+  method: dopri5           # euler | dopri5 | dopri8 | rk4 | midpoint | ...
+  rtol: 1.0e-4             # for adaptive solvers only
+  atol: 1.0e-4             # for adaptive solvers only
+  num_gpus: 1
+  output_dir: outputs/synth
+
+  sources:
+    - name: L25_1P
+      cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
+      gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
+      param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_1P_L25n256_normed.txt
+      box_size: 25
+      resolution: 128
+      crop_size: null      # null = full grid
+      n_samples: null      # null = all
+      n_stochastic: 1
+
+# ---- normalizing flow (parameter inference) ----
+nf:
+  data:
+    gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+    param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+    crop_size: null
+    val_split: 0.2
+
+  model:
+    num_cosmo: 2             # Omega_m, sigma_8
+    base_channels: 32
+    cond_embed_dim: 128
+    flow_hidden: 256
+    flow_transforms: 8
+    flow_type: nsf           # nsf | maf
+    dropout: 0.15
+
+  training:
+    lr_encoder: 3.0e-4
+    lr_flow: 1.0e-4
+    weight_decay: 1.0e-4
+    warmup_epochs: 15
+    max_epochs: 1000
+    batch_size: 2
+    num_workers: 4
+    accumulate_grad_batches: 8
+    precision: "16-mixed"
+    devices: 4
+    strategy: ddp
+    gradient_clip_val: 1.0
+    log_every_n_steps: 10
+    aux_loss_weight: 0.5
+    aux_loss_decay: 0.98
+    checkpoint_dir: nf_checkpoints/l25
+    resume_from: null
+    wandb_project: cosmo-nf-l25
+    seed: 42
+
+  inference:
+    checkpoint: null
+    n_posterior_samples: 2000
+    batch_size: 2
+    dpi: 200
+    output_dir: outputs/nf_inference
+    sources:
+      - name: L25_1P
+        gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
+        param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_1P_L25n256_normed.txt
+        crop_size: null
