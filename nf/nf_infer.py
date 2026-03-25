@@ -271,8 +271,12 @@ def main():
 
     ckpt = args.checkpoint or infer_cfg.get("checkpoint")
     if ckpt is None:
-        raise ValueError("No checkpoint specified. Set nf.inference.checkpoint "
-                         "in config.yaml or use --checkpoint.")
+        import glob
+        ckpt_dir = nf_cfg.get("training", {}).get("checkpoint_dir", "nf_checkpoints")
+        paths = sorted(glob.glob(os.path.join(ckpt_dir, "*.ckpt")))
+        if not paths:
+            raise FileNotFoundError(f"No checkpoints in {ckpt_dir}")
+        ckpt = max(paths, key=os.path.getmtime)
 
     device = args.device if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")

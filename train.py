@@ -91,6 +91,9 @@ class FlowMatchingModel(pl.LightningModule):
         self.lr = t["lr"]
         self.wd = t["weight_decay"]
         self.noise_std = t["noise_std"]
+        self.scheduler = t.get("scheduler", "plateau")
+        self.warmup_epochs = t.get("warmup_epochs", 0)
+        self.max_epochs = t["max_epochs"]
         self.xcorr_every = t["xcorr_every_n_epochs"]
         self.xcorr_steps = t["xcorr_num_steps"]
         self.xcorr_method = t.get("xcorr_method", "euler")
@@ -199,8 +202,20 @@ class FlowMatchingModel(pl.LightningModule):
 
     def configure_optimizers(self):
         opt = torch.optim.AdamW(self.parameters(), lr=self.lr, weight_decay=self.wd)
-        sched = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.95, patience=10)
-        return {"optimizer": opt, "lr_scheduler": sched, "monitor": "val_loss"}
+        if self.scheduler == "cosine":
+            cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, T_max=self.max_epochs - self.warmup_epochs, eta_min=1e-6)
+            if self.warmup_epochs > 0:
+                warmup = torch.optim.lr_scheduler.LinearLR(
+                    opt, start_factor=0.01, total_iters=self.warmup_epochs)
+                sched = torch.optim.lr_scheduler.SequentialLR(
+                    opt, [warmup, cosine], milestones=[self.warmup_epochs])
+            else:
+                sched = cosine
+            return {"optimizer": opt, "lr_scheduler": {"scheduler": sched, "interval": "epoch"}}
+        else:
+            sched = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, factor=0.95, patience=10)
+            return {"optimizer": opt, "lr_scheduler": sched, "monitor": "val_loss"}
 
 
 # ── main ─────────────────────────────────────────────────────────────────────

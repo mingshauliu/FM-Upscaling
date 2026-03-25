@@ -30,10 +30,12 @@ training:
   max_epochs: 1000
   batch_size: 2
   noise_std: 0.2
-  lr: 1.0e-4
+  lr: 3.0e-4
   weight_decay: 1.0e-3
   gradient_checkpointing: false
   gradient_clip: 0.5
+  scheduler: cosine         # cosine | plateau
+  warmup_epochs: 10
   accumulate_grad: 4
   precision: "bf16-mixed"  # bf16-mixed avoids fp16 overflow in GroupNorm on 128^3 volumes
   devices: 4
@@ -45,7 +47,7 @@ training:
   xcorr_method: euler      # euler | dopri5 | dopri8 | rk4 | midpoint | ...
   xcorr_rtol: 1.0e-4       # for adaptive solvers only
   xcorr_atol: 1.0e-4       # for adaptive solvers only
-  resume_from: lightning_logs/zbmlubqt/checkpoints/best-epoch=111-val_loss=0.026492.ckpt
+  resume_from: null
 
 # ---- inference ----
 inference:
@@ -113,6 +115,10 @@ nf:
     dpi: 200
     output_dir: outputs/nf_inference
     sources:
+      - name: L25_LH
+        gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+        param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+        crop_size: null
       - name: L25_1P
         gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
         param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_1P_L25n256_normed.txt
