@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-CKPT = "nf_weights/l25/nf-epoch=259-val_loss=0.0000.ckpt"
+CKPT = "/mnt/home/mliu1/pipeline_v3/nf_checkpoints/l25/nf-epoch=242-val_loss=0.0000.ckpt"
 GAS = "/mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy"
 PARAMS = "/mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt"
 N_POSTERIOR = 2000

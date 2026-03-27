@@ -18,12 +18,12 @@ data:
 
 # ---- model ----
 model:
+  architecture: deep_unet  # unet | deep_unet
   in_channels: 2           # [x_t, cdm]
-  base_channels: 128
+  base_channels: 64
   out_channels: 1
   param_dim: 6             # columns in param_path
   circular_padding: true
-  num_blocks: 2            # ResBlocks per encoder/decoder level
 
 # ---- training ----
 training:

@@ -17,6 +17,7 @@ from torchdiffeq import odeint
 import yaml
 
 from model import UNet
+from model_deep import DeepUNet
 
 try:
     import Pk_library as PKL
@@ -104,14 +105,24 @@ class FlowMatchingModel(pl.LightningModule):
         res = d["resolution"]
         self.box_size = d["box_size"] * (crop / res) if crop and crop < res else d["box_size"]
 
-        self.net = UNet(
-            in_channels=m["in_channels"],
-            base_channels=m["base_channels"],
-            out_channels=m["out_channels"],
-            param_dim=m["param_dim"],
-            circular_padding=m["circular_padding"],
-            num_blocks=m["num_blocks"],
-        )
+        arch = m.get("architecture", "unet")
+        if arch == "deep_unet":
+            self.net = DeepUNet(
+                in_channels=m["in_channels"],
+                base_channels=m["base_channels"],
+                out_channels=m["out_channels"],
+                param_dim=m["param_dim"],
+                circular_padding=m["circular_padding"],
+            )
+        else:
+            self.net = UNet(
+                in_channels=m["in_channels"],
+                base_channels=m["base_channels"],
+                out_channels=m["out_channels"],
+                param_dim=m["param_dim"],
+                circular_padding=m["circular_padding"],
+                num_blocks=m.get("num_blocks", 2),
+            )
         if t.get("gradient_checkpointing", False):
             self.net.enable_gradient_checkpointing()
         self.aug = RandomRotateFlip3D()

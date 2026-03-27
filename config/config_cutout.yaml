@@ -18,12 +18,12 @@ data:
 
 # ---- model ----
 model:
+  architecture: deep_unet  # unet | deep_unet
   in_channels: 2           # [x_t, cdm]
-  base_channels: 128
+  base_channels: 64
   out_channels: 1
   param_dim: 35             # columns in param_path
   circular_padding: false
-  num_blocks: 2            # ResBlocks per encoder/decoder level
 
 # ---- training ----
 training:
@@ -33,7 +33,9 @@ training:
   lr: 3.0e-4
   weight_decay: 1.0e-3
   gradient_checkpointing: false
-  gradient_clip: 1.0
+  gradient_clip: 0.5
+  scheduler: cosine         # cosine | plateau
+  warmup_epochs: 10
   accumulate_grad: 4
   precision: "bf16-mixed"  # 16-mixed | bf16-mixed | 32
   devices: 4
