@@ -1,28 +1,26 @@
 # ============================================================
-# pipeline_v3 — single config for training + inference
+# pipeline_v3 — plateau scheduler (matches original pipeline strategy)
 # ============================================================
-# Switch experiments by editing this file (or copy & rename).
-# Rules:
-#   circular_padding: true  → full periodic box only
-#   circular_padding: false → cropouts (boundaries not periodic)
+# Goal: recover xcorr metrics from pipeline/ by using ReduceLROnPlateau
+# instead of cosine annealing, with gradient_clip=1.0 and 16-mixed.
 
 # ---- data ----
 data:
   cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
   gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
   param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
-  resolution: 128          # native grid size (128 for L25, 256 for L50)
-  crop_size: null          # null = no crop; set < resolution for PBC random crop
-  box_size: 25             # Mpc/h
+  resolution: 128
+  crop_size: null
+  box_size: 25
   val_split: 0.2
 
 # ---- model ----
 model:
-  architecture: classic    # unet | deep_unet | classic
-  in_channels: 2           # [x_t, cdm]
+  architecture: classic
+  in_channels: 2
   base_channels: 128
   out_channels: 1
-  param_dim: 6             # columns in param_path
+  param_dim: 6
   circular_padding: true
 
 # ---- training ----
@@ -30,47 +28,37 @@ training:
   max_epochs: 1000
   batch_size: 2
   noise_std: 0.2
-  lr: 1.0e-3
+  lr: 3.0e-4
   weight_decay: 1.0e-3
   gradient_checkpointing: false
   gradient_clip: 1.0
-  scheduler: plateau        # cosine | plateau
+  scheduler: plateau
   warmup_epochs: 0
   accumulate_grad: 4
-  precision: "bf16-mixed"  # bf16-mixed avoids fp16 overflow in GroupNorm on 128^3 volumes
+  precision: "16-mixed"
   devices: 4
   strategy: ddp
   num_workers: 2
   log_every_n_steps: 50
   xcorr_every_n_epochs: 5
   xcorr_num_steps: 50
-  xcorr_method: euler      # euler | dopri5 | dopri8 | rk4 | midpoint | ...
-  xcorr_rtol: 1.0e-4       # for adaptive solvers only
-  xcorr_atol: 1.0e-4       # for adaptive solvers only
+  xcorr_method: euler
+  xcorr_rtol: 1.0e-4
+  xcorr_atol: 1.0e-4
   resume_from: null
   nf_eval_checkpoint: nf_checkpoints/l25/nf-epoch=242-val_loss=0.0000.ckpt
 
 # ---- inference ----
 inference:
-  checkpoint: null         # null = auto-detect best from lightning_logs/
-  num_steps: 100           # integration steps (fixed-step) or time points (adaptive)
-  method: dopri5           # euler | dopri5 | dopri8 | rk4 | midpoint | ...
-  rtol: 1.0e-4             # for adaptive solvers only
-  atol: 1.0e-4             # for adaptive solvers only
-  num_gpus: 4
-  output_dir: /mnt/home/mliu1/ceph/CAMELS-L25n256/synth_v3
+  checkpoint: null
+  num_steps: 100
+  method: dopri5
+  rtol: 1.0e-4
+  atol: 1.0e-4
+  num_gpus: 1
+  output_dir: outputs/synth
 
   sources:
-    - name: L25_LH
-      cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
-      gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
-      param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
-      box_size: 25
-      resolution: 128
-      crop_size: null
-      n_samples: null      # all 1000
-      n_stochastic: 1
-
     - name: L25_1P
       cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
       gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_1P_128_z=0.0_log1p_normed.npy
@@ -81,7 +69,7 @@ inference:
       n_samples: null
       n_stochastic: 1
 
-# ---- normalizing flow (parameter inference) ----
+# ---- normalizing flow ----
 nf:
   data:
     gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
@@ -90,12 +78,12 @@ nf:
     val_split: 0.2
 
   model:
-    num_cosmo: 2             # Omega_m, sigma_8
+    num_cosmo: 2
     base_channels: 32
     cond_embed_dim: 128
     flow_hidden: 256
     flow_transforms: 8
-    flow_type: nsf           # nsf | maf
+    flow_type: nsf
     dropout: 0.15
 
   training:

@@ -18,9 +18,9 @@ data:
 
 # ---- model ----
 model:
-  architecture: deep_unet  # unet | deep_unet
+  architecture: classic    # unet | deep_unet | classic
   in_channels: 2           # [x_t, cdm]
-  base_channels: 64
+  base_channels: 128
   out_channels: 1
   param_dim: 35             # columns in param_path
   circular_padding: false
