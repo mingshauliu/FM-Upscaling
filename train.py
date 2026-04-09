@@ -331,6 +331,10 @@ def main():
 
     d, t = cfg["data"], cfg["training"]
 
+    seed = t.get("seed")
+    if seed is not None:
+        pl.seed_everything(seed, workers=True)
+
     # load mmap data
     cdm = np.load(d["cdm_path"], mmap_mode="r")
     gas = np.load(d["gas_path"], mmap_mode="r")

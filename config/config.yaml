@@ -47,6 +47,7 @@ training:
   xcorr_method: euler      # euler | dopri5 | dopri8 | rk4 | midpoint | ...
   xcorr_rtol: 1.0e-4       # for adaptive solvers only
   xcorr_atol: 1.0e-4       # for adaptive solvers only
+  seed: 42
   resume_from: null
   nf_eval_checkpoint: nf_checkpoints/l25/nf-epoch=242-val_loss=0.0000.ckpt
 

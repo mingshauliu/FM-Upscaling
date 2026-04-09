@@ -30,12 +30,12 @@ training:
   max_epochs: 1000
   batch_size: 2
   noise_std: 0.2
-  lr: 3.0e-4
+  lr: 1.0e-3
   weight_decay: 1.0e-3
   gradient_checkpointing: false
-  gradient_clip: 0.5
-  scheduler: cosine         # cosine | plateau
-  warmup_epochs: 10
+  gradient_clip: 1.0
+  scheduler: plateau        # cosine | plateau
+  warmup_epochs: 0
   accumulate_grad: 4
   precision: "bf16-mixed"  # 16-mixed | bf16-mixed | 32
   devices: 4
@@ -51,21 +51,21 @@ training:
 
 # ---- inference ----
 inference:
-  checkpoint: null         # null = auto-detect best from lightning_logs/
+  checkpoint: /mnt/home/mliu1/pipeline_v3/lightning_logs/klt33dto/checkpoints/best-epoch=919-val_loss=0.016365.ckpt
   num_steps: 100           # integration steps (fixed-step) or time points (adaptive)
   method: dopri5            # euler | dopri5 | dopri8 | rk4 | midpoint | ...
   rtol: 1.0e-4             # for adaptive solvers only
   atol: 1.0e-4             # for adaptive solvers only
   num_gpus: 4
-  output_dir: outputs/synth
+  output_dir: /mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3
 
   sources:
-    - name: L50_cutout
+    - name: L50_SB35_full
       cdm_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/Grids_Mcdm_IllustrisTNG_SB35_256_z=0.0_log1p_normed.npy
       gas_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/Grids_Mgas_IllustrisTNG_SB35_256_z=0.0_log1p_normed.npy
       param_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/param_IllustrisTNG_SB35_L50n512_normed.txt
       box_size: 50
       resolution: 256
-      crop_size: 128      # null = full grid
-      n_samples: null      # null = all
+      crop_size: null      # full 256^3 — no cropping
+      n_samples: null      # all 2048
       n_stochastic: 1
