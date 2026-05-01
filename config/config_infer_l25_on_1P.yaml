@@ -1,0 +1,74 @@
+# ============================================================
+# Inference-only config: L25 model → L50 1P synthetic gas
+# ============================================================
+# Uses the L25 full-box FM model (circular_padding, 128^3, param_dim=6)
+# applied to L50 1P data at full 256^3 (offload_skips).
+# Params truncated to first 6 columns to match L25 model's param_dim.
+# 1P set: 25 sims × 256^3.
+
+# ---- data (matches L25 training config) ----
+data:
+  cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+  resolution: 128
+  crop_size: null
+  box_size: 25
+  val_split: 0.2
+
+# ---- model (must match L25 training) ----
+model:
+  architecture: classic
+  in_channels: 2
+  base_channels: 128
+  out_channels: 1
+  param_dim: 6
+  circular_padding: true
+
+# ---- training (unused for infer, but needed for checkpoint loading) ----
+training:
+  max_epochs: 1000
+  batch_size: 2
+  noise_std: 0.2
+  lr: 1.0e-3
+  weight_decay: 1.0e-3
+  gradient_checkpointing: false
+  gradient_clip: 1.0
+  scheduler: plateau
+  warmup_epochs: 0
+  accumulate_grad: 4
+  precision: "bf16-mixed"
+  devices: 4
+  strategy: ddp
+  num_workers: 2
+  log_every_n_steps: 50
+  xcorr_every_n_epochs: 5
+  xcorr_num_steps: 50
+  xcorr_method: euler
+  xcorr_rtol: 1.0e-4
+  xcorr_atol: 1.0e-4
+  seed: 42
+  resume_from: null
+  nf_eval_checkpoint: null
+
+# ---- inference ----
+inference:
+  checkpoint: /mnt/home/mliu1/pipeline_v3/lightning_logs/2iky8gr1/checkpoints/best-epoch=560-val_loss=0.021601.ckpt
+  num_steps: 500
+  method: dopri5
+  rtol: 1.0e-4
+  atol: 1.0e-4
+  num_gpus: 4
+  offload_skips: true
+  output_dir: /mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3_l25model
+
+  sources:
+    - name: L50_1P_from_l25model
+      cdm_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/Grids_Mcdm_IllustrisTNG_1P_256_z=0.0_log1p_normed.npy
+      gas_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/Grids_Mgas_IllustrisTNG_1P_256_z=0.0_log1p_normed.npy
+      param_path: /mnt/home/mliu1/ceph/CAMELS-L50n512/cached/param_IllustrisTNG_1P_L50n512_normed.txt
+      box_size: 50
+      resolution: 256
+      crop_size: null
+      n_samples: null         # all 25
+      n_stochastic: 1

@@ -133,6 +133,12 @@ class ClassicUNet(nn.Module):
 
         self.out_conv = nn.Conv3d(bc // 2, out_channels, 1)
 
+    def set_pad_mode(self, mode):
+        self.pad_mode = mode
+        for m in self.modules():
+            if isinstance(m, UNetBlock):
+                m.pad_mode = mode
+
     def enable_gradient_checkpointing(self):
         self._ckpt = True
 
@@ -168,5 +174,49 @@ class ClassicUNet(nn.Module):
 
         x = self.up1_conv(F.pad(self.up1(x), [1]*6, mode=self.pad_mode))
         x = self._ckpt_call(self.dec1, torch.cat([x, s1], 1), c)
+
+        return self.out_conv(x)
+
+    def forward_offload(self, x, t, params):
+        """Like forward() but offloads skip connections s1+s2 to CPU to save ~4.5 GB."""
+        c = self.cond_fuse(torch.cat([
+            self.time_mlp(sinusoidal_embedding(t, 64)),
+            self.param_mlp(params),
+        ], dim=1))
+
+        # encoder — offload s1 and s2 to CPU
+        s1, x = self._ckpt_call(self.enc1, x, c)
+        s1_cpu = s1.to("cpu")
+        del s1
+
+        s2, x = self._ckpt_call(self.enc2, x, c)
+        s2_cpu = s2.to("cpu")
+        del s2
+
+        s3, x = self._ckpt_call(self.enc3, x, c)
+
+        # bottleneck
+        x = F.silu(self.bn_norm1(x))
+        x = self.bn_conv1(F.pad(x, [1]*6, mode=self.pad_mode))
+        x = F.silu(self.bn_norm2(x))
+        x = self.bn_conv2(F.pad(x, [1]*6, mode=self.pad_mode))
+        x = self.bn_film(x, c)
+
+        # decoder
+        x = self.up3_conv(F.pad(self.up3(x), [1]*6, mode=self.pad_mode))
+        x = self._ckpt_call(self.dec3, torch.cat([x, s3], 1), c)
+        del s3
+
+        x = self.up2_conv(F.pad(self.up2(x), [1]*6, mode=self.pad_mode))
+        s2 = s2_cpu.to(x.device)
+        del s2_cpu
+        x = self._ckpt_call(self.dec2, torch.cat([x, s2], 1), c)
+        del s2
+
+        x = self.up1_conv(F.pad(self.up1(x), [1]*6, mode=self.pad_mode))
+        s1 = s1_cpu.to(x.device)
+        del s1_cpu
+        x = self._ckpt_call(self.dec1, torch.cat([x, s1], 1), c)
+        del s1
 
         return self.out_conv(x)

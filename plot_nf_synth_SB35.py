@@ -2,7 +2,6 @@
 
 Loads per-sample synthetic gas files from synth_v3/L50_SB35_full,
 runs NF inference, and plots true vs predicted cosmo params.
-Also runs inference on the corresponding true gas maps for comparison.
 """
 
 import sys, os, glob, re
@@ -17,11 +16,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 NF_CKPT   = "/mnt/home/mliu1/pipeline_v3/nf_checkpoints/l50/nf-epoch=150-val_loss=0.0000.ckpt"
-SYNTH_DIR = "/mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3/L50_SB35_full"
-TRUE_DIR  = "/mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3/L50_SB35_full_true_gas"
+SYNTH_DIR = "/mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3_l25model/L50_SB35_from_l25model"
 PARAMS    = "/mnt/home/mliu1/ceph/CAMELS-L50n512/cached/param_IllustrisTNG_SB35_L50n512_normed.txt"
 N_POSTERIOR = 2000
-OUT = "nf_truth_vs_pred_SB35_synth.png"
+OUT = "nf_truth_vs_pred_SB35_synth_l25model.png"
 
 
 class IndexedGasDataset(Dataset):
@@ -74,53 +72,35 @@ print(f"Device: {device}")
 model = LitNFRegressor.load_from_checkpoint(NF_CKPT, map_location=device)
 model.eval().to(device)
 
-# Find common sample indices between synth and true
-synth_files = sorted(glob.glob(os.path.join(SYNTH_DIR, "sample_*.npy")))
-true_files = sorted(glob.glob(os.path.join(TRUE_DIR, "sample_*.npy")))
-synth_ids = {int(re.search(r"sample_(\d+)", f).group(1)) for f in synth_files}
-true_ids = {int(re.search(r"sample_(\d+)", f).group(1)) for f in true_files}
-common_ids = sorted(synth_ids & true_ids)
-print(f"Synth samples: {len(synth_ids)}, True samples: {len(true_ids)}, Common: {len(common_ids)}")
-
 # Run on synth
 print("\n--- Synth gas inference ---")
 ds_synth = IndexedGasDataset(SYNTH_DIR, PARAMS)
 y_true_s, y_mean_s, y_std_s = run_inference(model, ds_synth, device, N_POSTERIOR)
 
-# Run on true gas (only common indices)
-print("\n--- True gas inference ---")
-ds_true = IndexedGasDataset(TRUE_DIR, PARAMS)
-y_true_t, y_mean_t, y_std_t = run_inference(model, ds_true, device, N_POSTERIOR)
-
-# Plot: 2 rows (synth, true) x 2 cols (Omega_m, sigma_8)
+# Plot: 1 row x 2 cols (Omega_m, sigma_8)
 param_names = [r"$\Omega_m$", r"$\sigma_8$"]
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-for row, (y_true, y_mean, y_std, tag) in enumerate([
-    (y_true_s, y_mean_s, y_std_s, "Synth Gas"),
-    (y_true_t, y_mean_t, y_std_t, "True Gas"),
-]):
-    for j, (label) in enumerate(param_names):
-        ax = axes[row, j]
-        x = y_true[:, j]
-        yp = y_mean[:, j]
-        err = y_std[:, j]
-        xmin, xmax = x.min(), x.max()
-        margin = 0.05 * (xmax - xmin)
-        line = np.linspace(xmin - margin, xmax + margin, 100)
-        rmse = np.sqrt(np.mean((x - yp) ** 2))
-        r2 = 1 - np.sum((x - yp) ** 2) / (np.sum((x - np.mean(x)) ** 2) + 1e-12)
-        ax.errorbar(x, yp, yerr=err, fmt="o", ms=4, alpha=0.5,
-                    color="tab:blue", elinewidth=0.5, capsize=1)
-        ax.plot(line, line, "r--", lw=2)
-        ax.set_xlabel("Truth")
-        ax.set_ylabel("Prediction")
-        ax.set_title(f"{tag} — {label}  RMSE={rmse:.4f}  R²={r2:.3f}")
-        ax.set_xlim(xmin - margin, xmax + margin)
-        ax.set_ylim(xmin - margin, xmax + margin)
-        ax.grid(alpha=0.3)
+for j, (ax, label) in enumerate(zip(axes, param_names)):
+    x = y_true_s[:, j]
+    yp = y_mean_s[:, j]
+    err = y_std_s[:, j]
+    xmin, xmax = x.min(), x.max()
+    margin = 0.05 * (xmax - xmin)
+    line = np.linspace(xmin - margin, xmax + margin, 100)
+    rmse = np.sqrt(np.mean((x - yp) ** 2))
+    r2 = 1 - np.sum((x - yp) ** 2) / (np.sum((x - np.mean(x)) ** 2) + 1e-12)
+    ax.errorbar(x, yp, yerr=err, fmt="o", ms=4, alpha=0.5,
+                color="tab:blue", elinewidth=0.5, capsize=1)
+    ax.plot(line, line, "r--", lw=2)
+    ax.set_xlabel("Truth")
+    ax.set_ylabel("Prediction")
+    ax.set_title(f"{label}  RMSE={rmse:.4f}  R²={r2:.3f}")
+    ax.set_xlim(xmin - margin, xmax + margin)
+    ax.set_ylim(xmin - margin, xmax + margin)
+    ax.grid(alpha=0.3)
 
-plt.suptitle("NF on SB35 L50 — Synth vs True Gas", fontsize=14)
+plt.suptitle("NF on FM Synthetic Gas (SB35 L50)", fontsize=14)
 plt.tight_layout()
 plt.savefig(OUT, dpi=200, bbox_inches="tight")
 print(f"\nSaved {OUT}")

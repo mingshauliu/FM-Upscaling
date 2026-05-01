@@ -35,7 +35,7 @@ training:
   gradient_checkpointing: false
   gradient_clip: 1.0
   scheduler: plateau        # cosine | plateau
-  warmup_epochs: 10
+  warmup_epochs: 0
   accumulate_grad: 4
   precision: "bf16-mixed"  # bf16-mixed avoids fp16 overflow in GroupNorm on 128^3 volumes
   devices: 4
@@ -47,13 +47,9 @@ training:
   xcorr_method: euler      # euler | dopri5 | dopri8 | rk4 | midpoint | ...
   xcorr_rtol: 1.0e-4       # for adaptive solvers only
   xcorr_atol: 1.0e-4       # for adaptive solvers only
-  seed: 42
+  seed: 123
   resume_from: null
   nf_eval_checkpoint: nf_checkpoints/l25/nf-epoch=242-val_loss=0.0000.ckpt
-  ema:
-    enabled: true
-    decay: 0.9999
-    warmup_steps: 2000
 
 # ---- inference ----
 inference:
@@ -122,7 +118,7 @@ nf:
     checkpoint_dir: nf_checkpoints/l25
     resume_from: null
     wandb_project: cosmo-nf-l25
-    seed: 42
+    seed: 123
 
   inference:
     checkpoint: null

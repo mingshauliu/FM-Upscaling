@@ -1,0 +1,112 @@
+# ============================================================
+# Fresh L25 training — PixelNorm (resolution-invariant)
+# ============================================================
+# Targets the upscale-to-L50 failure mode. Replaces default
+# GroupNorm(1, C) (volume-dependent at 128^3 train vs 256^3 infer)
+# with PixelNorm (per-voxel channel norm, resolution-invariant).
+# Inherits PBC random-shift aug + EMA on. Fresh init since
+# norm_type is structural.
+
+# ---- data ----
+data:
+  cdm_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mcdm_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+  param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+  resolution: 128
+  crop_size: null
+  box_size: 25
+  val_split: 0.2
+
+# ---- model ----
+model:
+  architecture: classic
+  in_channels: 2
+  base_channels: 128
+  out_channels: 1
+  param_dim: 6
+  circular_padding: true
+  norm_type: pixel             # NEW: resolution-invariant per-voxel norm
+
+# ---- training ----
+training:
+  max_epochs: 2000
+  batch_size: 4
+  noise_std: 0.2
+  lr: 1.0e-3
+  weight_decay: 1.0e-3
+  gradient_checkpointing: true
+  gradient_clip: 1.0
+  scheduler: plateau
+  warmup_epochs: 10
+  accumulate_grad: 2
+  precision: "bf16-mixed"
+  devices: 4
+  strategy: ddp
+  num_workers: 2
+  log_every_n_steps: 50
+  xcorr_every_n_epochs: 5
+  xcorr_num_steps: 50
+  xcorr_method: euler
+  xcorr_rtol: 1.0e-4
+  xcorr_atol: 1.0e-4
+  seed: 42
+  resume_from: null
+  nf_eval_checkpoint: nf_checkpoints/l25/nf-epoch=242-val_loss=0.0000.ckpt
+  ema:
+    enabled: true
+    decay: 0.9999
+    warmup_steps: 2000
+
+# ---- inference ----
+inference:
+  checkpoint: null
+  num_steps: 100
+  method: dopri5
+  rtol: 1.0e-4
+  atol: 1.0e-4
+  num_gpus: 4
+  output_dir: /mnt/home/mliu1/ceph/CAMELS-L25n256/synth_v3
+  sources: []
+
+# ---- nf (unused here, kept for schema compatibility) ----
+nf:
+  data:
+    gas_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/Grids_Mgas_IllustrisTNG_LH_128_z=0.0_log1p_normed.npy
+    param_path: /mnt/home/mliu1/ceph/CAMELS-L25n256/cached/param_IllustrisTNG_LH_L25n256_normed.txt
+    crop_size: null
+    val_split: 0.2
+  model:
+    num_cosmo: 2
+    base_channels: 32
+    cond_embed_dim: 128
+    flow_hidden: 256
+    flow_transforms: 8
+    flow_type: nsf
+    dropout: 0.15
+  training:
+    lr_encoder: 3.0e-4
+    lr_flow: 1.0e-4
+    weight_decay: 1.0e-4
+    warmup_epochs: 15
+    max_epochs: 1000
+    batch_size: 2
+    num_workers: 4
+    accumulate_grad_batches: 8
+    precision: "16-mixed"
+    devices: 4
+    strategy: ddp
+    gradient_clip_val: 1.0
+    log_every_n_steps: 10
+    aux_loss_weight: 0.5
+    aux_loss_decay: 0.98
+    checkpoint_dir: nf_checkpoints/l25
+    resume_from: null
+    wandb_project: cosmo-nf-l25
+    seed: 42
+  inference:
+    checkpoint: null
+    n_posterior_samples: 2000
+    batch_size: 2
+    dpi: 200
+    output_dir: outputs/nf_inference
+    sources: []

@@ -57,7 +57,7 @@ inference:
   rtol: 1.0e-4             # for adaptive solvers only
   atol: 1.0e-4             # for adaptive solvers only
   num_gpus: 4
-  output_dir: /mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3
+  output_dir: /mnt/home/mliu1/ceph/CAMELS-L50n512/synth_v3_cutoutmodel
 
   sources:
     - name: L50_SB35_full

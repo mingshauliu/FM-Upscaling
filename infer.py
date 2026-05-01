@@ -43,25 +43,25 @@ def build_models(ckpt, num_gpus, cfg):
     models = {}
     for i in range(num_gpus):
         m = copy.deepcopy(base).to(f"cuda:{i}").eval()
-        m = torch.compile(m, mode="reduce-overhead", fullgraph=False)
         models[i] = m
     del base
     return models
 
 
-def warmup(models, spatial, param_dim, method):
+def warmup(models, spatial, param_dim, method, tile_size=None, offload_skips=False):
+    warmup_size = tile_size if tile_size and spatial > tile_size else spatial
     for i, m in models.items():
         dev = f"cuda:{i}"
-        with torch.no_grad(), torch.amp.autocast("cuda", torch.float16):
-            d = torch.randn(1, 1, spatial, spatial, spatial, device=dev)
+        with torch.no_grad(), torch.amp.autocast("cuda", torch.bfloat16):
+            d = torch.randn(1, 1, warmup_size, warmup_size, warmup_size, device=dev)
             p = torch.randn(1, param_dim, device=dev)
-            for _ in range(2):
-                m.sample(d, p, num_steps=2, method=method)
+            m.sample(d, p, num_steps=2, method="euler", offload_skips=offload_skips)
             del d, p
         torch.cuda.synchronize(dev)
 
 
-def process_source(src, models, num_steps, param_dim, out_base, method='euler', rtol=1e-4, atol=1e-4):
+def process_source(src, models, num_steps, param_dim, out_base, method='euler', rtol=1e-4, atol=1e-4,
+                   tile_size=None, offload_skips=False):
     name = src["name"]
     print(f"\n{'='*50}\n{name}\n{'='*50}")
 
@@ -89,7 +89,7 @@ def process_source(src, models, num_steps, param_dim, out_base, method='euler', 
         gas_dir.mkdir(parents=True, exist_ok=True)
 
     num_gpus = len(models)
-    warmup(models, spatial, param_dim, method)
+    warmup(models, spatial, param_dim, method, tile_size=tile_size, offload_skips=offload_skips)
 
     # build job list
     jobs = []
@@ -118,12 +118,13 @@ def process_source(src, models, num_steps, param_dim, out_base, method='euler', 
     total = n * n_stoch
     pbar = tqdm(total=total, initial=total - len(jobs), desc=name)
 
-    def _run(gpu, dm, p, path):
+    def _run(gpu, dm, p, path, tile_size=tile_size, offload_skips=offload_skips):
         dev = f"cuda:{gpu}"
         d = torch.from_numpy(dm).unsqueeze(0).unsqueeze(0).to(dev)
         pt = torch.from_numpy(p).unsqueeze(0).to(dev)
-        with torch.no_grad(), torch.amp.autocast("cuda", torch.float16):
-            out = models[gpu].sample(d, pt, num_steps=num_steps, method=method, rtol=rtol, atol=atol)
+        with torch.no_grad(), torch.amp.autocast("cuda", torch.bfloat16):
+            out = models[gpu].sample(d, pt, num_steps=num_steps, method=method, rtol=rtol, atol=atol,
+                                     tile_size=tile_size, offload_skips=offload_skips)
         np.save(path, out.squeeze().float().cpu().numpy())
         del d, pt, out
         torch.cuda.synchronize(dev)
@@ -159,9 +160,12 @@ def main():
     method = inf.get("method", "euler")
     rtol = inf.get("rtol", 1e-4)
     atol = inf.get("atol", 1e-4)
+    tile_size = inf.get("tile_size")
+    offload_skips = inf.get("offload_skips", False)
     for src in inf["sources"]:
         process_source(src, models, inf["num_steps"], cfg["model"]["param_dim"], inf["output_dir"],
-                       method=method, rtol=rtol, atol=atol)
+                       method=method, rtol=rtol, atol=atol, tile_size=tile_size,
+                       offload_skips=offload_skips)
 
     for i in range(num_gpus):
         torch.cuda.empty_cache()

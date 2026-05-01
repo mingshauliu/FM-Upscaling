@@ -34,6 +34,7 @@ case "$MODE" in
     srun python train.py --config "$CONFIG"
     ;;
   infer)
+    export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
     python infer.py --config "$CONFIG"
     ;;
   nf_train)
